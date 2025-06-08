@@ -24,8 +24,8 @@ variable "shutdown_threshold" {
 
 variable "java_version" {
   description = "Java version"
-  type        = string
-  default     = "19"
+  type        = number
+  default     = 19
 }
 
 variable "repo_url" {
@@ -42,4 +42,9 @@ variable "access_key_value" {
 variable "secret_key_value" {
   description = "AWS secret key"
   type        = string
+}
+
+variable "instance_user" {
+  type    = string
+  default = "ec2-user"
 }
