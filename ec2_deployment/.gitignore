@@ -1,3 +1,11 @@
 terraform.tfvars
 .terraform.lock.hcl
 .terraform
+
+.terraform.local.hcl
+terraform.tfstate
+terraform.tfstate.backup
+
+key_pair/   #Your instance key pair files here
+
+.terraform.tfstate.lock.info

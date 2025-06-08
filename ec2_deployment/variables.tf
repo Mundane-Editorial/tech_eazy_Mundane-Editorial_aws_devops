@@ -31,6 +31,7 @@ variable "java_version" {
 variable "repo_url" {
   description = "Github repository url"
   type        = string
+  default     = "https://github.com/techeazy-consulting/techeazy-devops"
 }
 
 variable "access_key_value" {
