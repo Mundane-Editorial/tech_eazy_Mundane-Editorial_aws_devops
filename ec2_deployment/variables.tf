@@ -22,7 +22,7 @@ variable "shutdown_threshold" {
   default     = 20
 }
 
-varibale "java_version" {
+variable "java_version" {
   description = "Java version"
   type        = string
   default     = "19"
