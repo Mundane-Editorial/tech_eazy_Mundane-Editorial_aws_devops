@@ -6,6 +6,6 @@ terraform.tfvars
 terraform.tfstate
 terraform.tfstate.backup
 
-key_pair/   #Your instance key pair files here
+key_pair/
 
 .terraform.tfstate.lock.info
