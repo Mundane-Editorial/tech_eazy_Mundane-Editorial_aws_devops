@@ -1,8 +1,13 @@
 resource "aws_instance" "web" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t2.micro"
+  ami           = var.ami_id
+  instance_type = var.instance_type
+
+  user_data = <<-EOF
+                #!/bin/bash
+                
+            EOF
 
   tags = {
-    Name = "HelloWorld"
+    Name = "Java-Application"
   }
 }

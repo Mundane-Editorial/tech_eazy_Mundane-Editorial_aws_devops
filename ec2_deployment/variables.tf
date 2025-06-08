@@ -32,3 +32,13 @@ variable "repo_url" {
   description = "Github repository url"
   type        = string
 }
+
+variable "access_key_value" {
+  description = "AWS access key"
+  type        = string
+}
+
+variable "secret_key_value" {
+  description = "AWS secret key"
+  type        = string
+}
