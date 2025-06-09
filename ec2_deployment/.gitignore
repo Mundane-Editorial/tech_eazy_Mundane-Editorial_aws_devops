@@ -2,10 +2,10 @@ terraform.tfvars
 .terraform.lock.hcl
 .terraform
 
-.terraform.local.hcl
 terraform.tfstate
 terraform.tfstate.backup
 
-key_pair/
+key_pair/id_rsa
+key_pair/id_rsa.pub
 
 .terraform.tfstate.lock.info
