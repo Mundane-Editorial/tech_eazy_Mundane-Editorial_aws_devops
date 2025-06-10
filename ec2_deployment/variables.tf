@@ -48,3 +48,8 @@ variable "instance_user" {
   type    = string
   default = "ec2-user"
 }
+
+variable "bucket_name" {
+  description = "S3 bucket name for storing artifacts"
+  type        = string
+}
