@@ -1,108 +1,74 @@
+# Instance profile that connects EC2 to the IAM role
 resource "aws_iam_instance_profile" "Java-Application-Profile" {
   name = "Java-Application-Profile"
-  role = "${aws_iam_role.uploadonly_s3_role.name}"
+  role = aws_iam_role.uploadonly_s3_role.name
 }
 
-resource "aws_iam_role_policy" "readonly_s3_policy" {
-  name = "readonly_s3_policy"
-  # description = "Policy to allow read-only access to S3 bucket"
-  role = aws_iam_role.readonly_s3_role.id
+# EC2 role to allow upload-only access to S3
+resource "aws_iam_role" "uploadonly_s3_role" {
+  name = "uploadonly_s3_role"
 
-  policy = jsonencode({
-    Version = "2012-10-17"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
     Statement = [
       {
+        Effect = "Allow",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+# Upload-only S3 custom policy
+resource "aws_iam_policy" "uploadonly_s3_policy" {
+  name = "uploadonly_s3_policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
         Action = [
-          "s3:GetObject",
-          "s3:ListBucket"
-        ]
-        Effect   = "Allow"
+          "s3:PutObject"
+        ],
         Resource = [
-          "arn:aws:s3:::${var.bucket_name}",
-          "arn:aws:s3:::${var.bucket_name}/*"
+          "arn:aws:s3:::${aws_s3_bucket.artifact_bucket.bucket}/*"
         ]
       }
     ]
   })
 }
 
+# Attach the upload-only policy to the upload role
+resource "aws_iam_role_policy_attachment" "uploadonly_s3_policy_attachment" {
+  role       = aws_iam_role.uploadonly_s3_role.name
+  policy_arn = aws_iam_policy.uploadonly_s3_policy.arn
+}
+
+# Optional: Read-only role if needed separately (unchanged)
 resource "aws_iam_role" "readonly_s3_role" {
   name = "readonly_s3_role"
 
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
       {
-        Action = "sts:AssumeRole"
+        Effect = "Allow",
         Principal = {
           Service = "ec2.amazonaws.com"
-        }
-        Effect = "Allow"  
+        },
+        Action = "sts:AssumeRole"
       }
     ]
   })
 }
 
+# Attach AWS-managed read-only policy to that role
 resource "aws_iam_policy_attachment" "readonly_s3_policy_attachment" {
   name       = "readonly_s3_policy_attachment"
   roles      = [aws_iam_role.readonly_s3_role.name]
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
 }
-
-resource "aws_iam_role_policy" "uploadonly_s3_policy" {
-  name = "uploadonly_s3_policy"
-  # description = "Policy to allow upload-only access to S3 bucket"
-  role = aws_iam_role.uploadonly_s3_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = [
-          "s3:createBucket",
-          "s3:PutObject",
-        ]
-        Effect   = "Allow"
-        Resource = [
-          "arn:aws:s3:::${var.bucket_name}",
-          "arn:aws:s3:::${var.bucket_name}/*"
-        ]
-      },
-      {
-        Action = [
-          "s3:GetObject",
-          "s3:ListBucket"
-        ]
-        Effect   = "Deny"
-        Resource = [
-          "arn:aws:s3:::${var.bucket_name}",
-          "arn:aws:s3:::${var.bucket_name}/*"
-        ]
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role" "uploadonly_s3_role" {
-  name = "uploadonly_s3_role" 
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Effect = "Allow"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_policy_attachment" "uploadonly_s3_policy_attachment" {
-  name       = "uploadonly_s3_policy_attachment"
-  roles      = [aws_iam_role.uploadonly_s3_role.name]
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
-}
-

@@ -52,4 +52,10 @@ variable "instance_user" {
 variable "bucket_name" {
   description = "S3 bucket name for storing artifacts"
   type        = string
+
+  validation {
+    condition     = length(var.bucket_name) > 0
+    error_message = "bucket_name must not be empty."
+  }
 }
+

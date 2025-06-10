@@ -3,7 +3,7 @@ resource "aws_instance" "Java-Application" {
   instance_type          = var.instance_type
   key_name               = aws_key_pair.Java-Application-Key.key_name
   vpc_security_group_ids = ["${aws_security_group.Java-Application-SG.id}"]
-  iam_instance_profile   = "${aws_iam_instance_profile.Java-Application-Profile.name}"
+  iam_instance_profile   = aws_iam_instance_profile.Java-Application-Profile.name
 
   provisioner "file" {
     source      = "${path.module}/scripts/setup.sh"
@@ -20,7 +20,7 @@ resource "aws_instance" "Java-Application" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /home/${var.instance_user}/setup.sh",
-      "/home/${var.instance_user}/setup.sh ${var.java_version} ${var.repo_url} ${var.shutdown_threshold}"
+      "/home/${var.instance_user}/setup.sh ${var.java_version} ${var.repo_url} ${var.shutdown_threshold} ${aws_s3_bucket.artifact_bucket.bucket}"
     ]
 
     connection {
