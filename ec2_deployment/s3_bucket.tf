@@ -5,7 +5,7 @@ resource "random_id" "suffix" {
 resource "aws_s3_bucket" "artifact_bucket" {
   bucket = "${var.bucket_name}-${random_id.suffix.hex}"
 
-  force_destroy = true
+  force_destroy = true  # for development purpose only
 
   tags = {
     Name        = var.bucket_name
