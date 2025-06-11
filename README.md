@@ -10,7 +10,7 @@ This project provisions an EC2 instance on AWS using Terraform and deploys a Jav
 TechEazy-internship/
 └── ec2_deployment
     ├── config
-    │   └── dev_config.tfvars
+    │   └── dev_config.tfvars  //configure your variables here
     ├── key_pair
     │   ├── id_rsa
     │   └── id_rsa.pub
