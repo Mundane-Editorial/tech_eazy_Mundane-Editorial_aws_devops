@@ -15,11 +15,14 @@ jobs:
     env:
       ACCESS_KEY_VALUE: ${{ secrets.ACCESS_KEY_VALUE }}
       SECRET_KEY_VALUE: ${{ secrets.SECRET_KEY_VALUE }}
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-      EC2_KEY_PAIR: ${{ secrets.EC2_KEY_PAIR }}
-      EC2_USER: ${{ secrets.EC2_USER }}
-      BUCKET_NAME: ${{ secrets.BUCKET_NAME }}
+      EC2_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+
+      # Environment Variables
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      EC2_KEY_PAIR: ${{ vars.EC2_KEY_PAIR }}
+      EC2_USER: ${{ vars.INSTANCE_USER }}
+      BUCKET_NAME: ${{ vars.BUCKET_NAME }}
 
     steps:
     - name: Checkout code
@@ -49,7 +52,7 @@ jobs:
       run: terraform init
 
     - name: Terraform apply
-      run: terraform apply -auto-approve -var-file=config/${{env.TF_VAR_stage}}_config.tfvars
+      run: terraform apply -auto-approve -var-file=config/${{ env.TF_VAR_stage }}_config.tfvars
 
     - name: Get EC2 Public IP
       id: ec2_ip
@@ -57,9 +60,9 @@ jobs:
 
     - name: add SSH key to the agent
       run: |
-        echo "${{ secrets.EC2_PRIVATE_KEY }}" > id_rsa
+        echo "${{ env.EC2_PRIVATE_KEY }}" > id_rsa
         chmod 600 id_rsa
-      
+
     - name: SSH and Run Setup Script
       run: |
         scp -o StrictHostKeyChecking=no -i id_rsa scripts/setup.sh ${{ env.EC2_USER }}@${{ env.EC2_IP }}:/tmp/setup.sh
@@ -82,6 +85,3 @@ jobs:
       run: |
         echo "Deployment complete for ${{ env.TF_VAR_stage }} at $(date)" > deploy.log
         aws s3 cp deploy.log s3://${{ env.BUCKET_NAME }}/${{ env.TF_VAR_stage }}/
-
-
-
