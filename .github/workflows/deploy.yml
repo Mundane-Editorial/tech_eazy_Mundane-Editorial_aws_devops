@@ -38,27 +38,12 @@ jobs:
         sudo mv terraform /usr/local/bin/
         terraform -version
 
-    - name: Validate Secrets
-      run: |
-        if [ -z "${{ env.AWS_REGION }}" ]; then
-          echo "Error: AWS_REGION secret is not set."
-          exit 1
-        fi
-        if [ -z "${{ secrets.ACCESS_KEY_VALUE }}" ]; then
-          echo "Error: ACCESS_KEY_VALUE secret is not set."
-          exit 1
-        fi
-        if [ -z "${{ secrets.SECRET_KEY_VALUE }}" ]; then
-          echo "Error: SECRET_KEY_VALUE secret is not set."
-          exit 1
-        fi
-
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
       with:
         aws-access-key-id: ${{ secrets.ACCESS_KEY_VALUE }}
         aws-secret-access-key: ${{ secrets.SECRET_KEY_VALUE }}
-        aws-region: ${{ secrets.AWS_REGION }}
+        aws-region: ${{ env.AWS_REGION }}
 
     - name: Initialize Terraform
       run: terraform init
@@ -77,8 +62,8 @@ jobs:
       
     - name: SSH and Run Setup Script
       run: |
-        scp -o StrictHostKeyChecking=no -i id_rsa scripts/setup.sh ${{ secrets.EC2_USER }}@${{ env.EC2_IP }}:/tmp/setup.sh
-        ssh -o StrictHostKeyChecking=no -i id_rsa ${{ secrets.EC2_USER }}@${{ env.EC2_IP }} "bash /tmp/setup.sh"
+        scp -o StrictHostKeyChecking=no -i id_rsa scripts/setup.sh ${{ env.EC2_USER }}@${{ env.EC2_IP }}:/tmp/setup.sh
+        ssh -o StrictHostKeyChecking=no -i id_rsa ${{ env.EC2_USER }}@${{ env.EC2_IP }} "bash /tmp/setup.sh"
 
     - name: Health Check
       run: |
