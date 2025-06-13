@@ -18,12 +18,16 @@ jobs:
       SECRET_KEY_VALUE: ${{ secrets.SECRET_KEY_VALUE }}
       EC2_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
 
-      # Environment Variables
       AWS_REGION: ${{ vars.AWS_REGION }}
+      BUCKET_NAME: ${{ vars.BUCKET_NAME }}
       EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
       EC2_KEY_PAIR: ${{ vars.EC2_KEY_PAIR }}
       EC2_USER: ${{ vars.INSTANCE_USER }}
-      BUCKET_NAME: ${{ vars.BUCKET_NAME }}
+      AMI_ID: ${{ vars.AMI_ID }}
+      INSTANCE_TYPE: ${{ vars.INSTANCE_TYPE }}
+      JAVA_VERSION: ${{ vars.JAVA_VERSION }}
+      REPO_URL: ${{ vars.REPO_URL }}
+      SHUTDOWN_THRESHOLD: ${{ vars.SHUTDOWN_THRESHOLD }}
 
     steps:
     - name: Checkout code
@@ -49,7 +53,7 @@ jobs:
         echo "EC2_KEY_PAIR: ${{ vars.EC2_KEY_PAIR }}"
         echo "EC2_USER: ${{ vars.EC2_USER }}"
         echo "BUCKET_NAME: ${{ vars.BUCKET_NAME }}"
-        echo "TF_VAR_stage: ${{ vars.TF_VAR_stage }}"
+        echo "TF_VAR_stage: ${{ env.TF_VAR_stage }}"
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
