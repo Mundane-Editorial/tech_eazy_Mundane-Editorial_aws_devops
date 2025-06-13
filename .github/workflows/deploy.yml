@@ -38,6 +38,21 @@ jobs:
         sudo mv terraform /usr/local/bin/
         terraform -version
 
+    - name: Validate Secrets
+      run: |
+        if [ -z "${{ secrets.AWS_REGION }}" ]; then
+          echo "Error: AWS_REGION secret is not set."
+          exit 1
+        fi
+        if [ -z "${{ secrets.ACCESS_KEY_VALUE }}" ]; then
+          echo "Error: ACCESS_KEY_VALUE secret is not set."
+          exit 1
+        fi
+        if [ -z "${{ secrets.SECRET_KEY_VALUE }}" ]; then
+          echo "Error: SECRET_KEY_VALUE secret is not set."
+          exit 1
+        fi
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
       with:
