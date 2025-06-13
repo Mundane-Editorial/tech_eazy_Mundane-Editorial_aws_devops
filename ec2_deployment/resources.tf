@@ -1,6 +1,6 @@
 resource "aws_key_pair" "Java-Application-Key" {
   key_name   = "Java-Application-Key"
-  public_key = file("${path.module}/key_pair/id_rsa.pub")
+  public_key = var.ec2_public_key
 }
 
 resource "aws_security_group" "Java-Application-SG" {
