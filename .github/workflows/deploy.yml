@@ -76,6 +76,10 @@ jobs:
       run: terraform init
 
     - name: Terraform apply
+      env:
+      TF_VAR_access_key_value: ${{ secrets.ACCESS_KEY_VALUE }}
+      TF_VAR_secret_key_value: ${{ secrets.SECRET_KEY_VALUE }}
+      TF_VAR_stage: ${{ env.TF_VAR_stage }}
       run: terraform apply -auto-approve -var-file=config/dev_config.tfvars
 
     - name: Get EC2 Public IP
