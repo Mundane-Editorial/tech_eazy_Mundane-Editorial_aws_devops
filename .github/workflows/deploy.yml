@@ -40,7 +40,7 @@ jobs:
 
     - name: Validate Secrets
       run: |
-        if [ -z "${{ secrets.AWS_REGION }}" ]; then
+        if [ -z "${{ env.AWS_REGION }}" ]; then
           echo "Error: AWS_REGION secret is not set."
           exit 1
         fi
