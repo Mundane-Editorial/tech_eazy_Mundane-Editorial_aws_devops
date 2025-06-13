@@ -116,3 +116,6 @@ jobs:
       run: |
         echo "Deployment complete for ${{ env.TF_VAR_stage  || 'dev' }} at $(date)" > deploy.log
         aws s3 cp deploy.log s3://${{ env.BUCKET_NAME }}/dev/
+
+
+#deploy.yml not working properly :: its not working as expected
