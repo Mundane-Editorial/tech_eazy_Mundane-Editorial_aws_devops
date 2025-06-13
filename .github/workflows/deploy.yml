@@ -4,6 +4,7 @@ on:
     branches: [master, feature/*]
     tags:
       - 'deploy-*'
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -40,6 +41,15 @@ jobs:
         unzip terraform_1.5.7_linux_amd64.zip
         sudo mv terraform /usr/local/bin/
         terraform -version
+
+    - name: vaildate environemnt variables
+      run: |
+        echo "AWS_REGION: ${{ vars.AWS_REGION }}"
+        echo "EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}"
+        echo "EC2_KEY_PAIR: ${{ vars.EC2_KEY_PAIR }}"
+        echo "EC2_USER: ${{ vars.EC2_USER }}"
+        echo "BUCKET_NAME: ${{ vars.BUCKET_NAME }}"
+        echo "TF_VAR_stage: ${{ vars.TF_VAR_stage }}"
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
