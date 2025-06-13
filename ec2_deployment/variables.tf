@@ -59,3 +59,19 @@ variable "bucket_name" {
   }
 }
 
+variable "stage" {
+  description = "Deployment stage"
+  type        = string
+}
+
+variable "ec2_private_key" {
+  description = "Private key for EC2 SSH provisioning"
+  type        = string
+  sensitive   = true
+}
+
+variable "ec2_public_key" {
+  description = "Public key for EC2 SSH provisioning"
+  type        = string
+  sensitive   = true
+}

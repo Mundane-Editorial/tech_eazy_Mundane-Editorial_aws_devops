@@ -10,7 +10,8 @@ This project provisions an EC2 instance on AWS using Terraform and deploys a Jav
 TechEazy-internship/
 └── ec2_deployment
     ├── config
-    │   └── dev_config.tfvars  //configure your variables here
+    │   └── dev_config.tfvars  //configure your dev variables here
+    │   └── prod_config.tfvars  //configure your prod variables here
     ├── key_pair
     │   ├── id_rsa
     │   └── id_rsa.pub
@@ -159,5 +160,11 @@ key_pair/id_rsa.pub
 
 .terraform.tfstate.lock.info
 ```
+
+---
+
+## final steps to validate github actions 
+
+- push updated code to any of the branch and it will trigger CI/CD
 
 ---
