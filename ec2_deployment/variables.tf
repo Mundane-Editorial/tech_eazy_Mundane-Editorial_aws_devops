@@ -63,3 +63,9 @@ variable "stage" {
   description = "Deployment stage"
   type        = string
 }
+
+variable "ec2_private_key" {
+  description = "Private key for EC2 SSH provisioning"
+  type        = string
+  sensitive   = true
+}

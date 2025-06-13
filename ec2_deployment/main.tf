@@ -12,7 +12,7 @@ resource "aws_instance" "Java-Application" {
     connection {
       type        = "ssh"
       user        = var.instance_user
-      private_key = file("${path.module}/key_pair/id_rsa")
+      private_key = var.ec2_private_key
       host        = self.public_ip
     }
   }
@@ -26,7 +26,7 @@ resource "aws_instance" "Java-Application" {
     connection {
       type        = "ssh"
       user        = var.instance_user
-      private_key = file("${path.module}/key_pair/id_rsa")
+      private_key = var.ec2_private_key
       host        = self.public_ip
     }
   }
