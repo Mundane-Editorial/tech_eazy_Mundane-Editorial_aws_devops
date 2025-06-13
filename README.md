@@ -162,3 +162,9 @@ key_pair/id_rsa.pub
 ```
 
 ---
+
+## final steps to validate github actions 
+
+- push updated code to any of the branch and it will trigger CI/CD
+
+---
