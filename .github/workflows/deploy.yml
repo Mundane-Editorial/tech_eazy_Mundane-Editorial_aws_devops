@@ -63,7 +63,7 @@ jobs:
         echo "EC2_KEY_PAIR: ${{ vars.EC2_KEY_PAIR }}"
         echo "EC2_USER: ${{ vars.EC2_USER }}"
         echo "BUCKET_NAME: ${{ vars.BUCKET_NAME }}"
-        echo "TF_VAR_stage: ${{ env.TF_VAR_stage }}"
+        echo "TF_VAR_stage: ${{ env.TF_VAR_stage  || 'dev' }}"
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
@@ -76,7 +76,7 @@ jobs:
       run: terraform init
 
     - name: Terraform apply
-      run: terraform apply -auto-approve -var-file=config/${{ env.TF_VAR_stage }}_config.tfvars
+      run: terraform apply -auto-approve -var-file=config/dev_config.tfvars
 
     - name: Get EC2 Public IP
       id: ec2_ip
@@ -107,5 +107,5 @@ jobs:
 
     - name: upload logs to S3
       run: |
-        echo "Deployment complete for ${{ env.TF_VAR_stage }} at $(date)" > deploy.log
-        aws s3 cp deploy.log s3://${{ env.BUCKET_NAME }}/${{ env.TF_VAR_stage }}/
+        echo "Deployment complete for ${{ env.TF_VAR_stage  || 'dev' }} at $(date)" > deploy.log
+        aws s3 cp deploy.log s3://${{ env.BUCKET_NAME }}/dev/
