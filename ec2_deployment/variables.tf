@@ -70,7 +70,7 @@ variable "ec2_private_key" {
   sensitive   = true
 }
 
-variable "ec2_public_key" {
+variable "ec2_instance_key" {
   description = "Public key for EC2 SSH provisioning"
   type        = string
   sensitive   = true
