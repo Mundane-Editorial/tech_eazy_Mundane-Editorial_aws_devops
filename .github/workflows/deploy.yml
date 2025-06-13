@@ -36,7 +36,16 @@ jobs:
 
     - name: Set stage from tag
       if: startsWith(github.ref, 'refs/tags/deploy-')
-      run: echo "TF_VAR_stage=${GITHUB_REF#refs/tags/deploy-}" >> $GITHUB_ENV
+      run: |
+        BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+
+        if [[ "$BRANCH_NAME" == "prod" ]]; then
+          STAGE="prod"
+        else
+          STAGE="dev"  # default for dev, feature/*, etc.
+        fi
+
+        echo "TF_VAR_stage=$STAGE" >> $GITHUB_ENV
 
     - name: Install Terraform
       run: |
