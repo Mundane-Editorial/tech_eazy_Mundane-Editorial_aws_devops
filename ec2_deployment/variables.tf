@@ -59,3 +59,7 @@ variable "bucket_name" {
   }
 }
 
+variable "stage" {
+  description = "Deployment stage"
+  type        = string
+}

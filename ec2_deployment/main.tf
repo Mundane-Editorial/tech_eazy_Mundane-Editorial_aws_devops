@@ -32,7 +32,8 @@ resource "aws_instance" "Java-Application" {
   }
 
   tags = {
-    Name = "Java-Application"
+    Name = "Java-Application-${var.stage}"
+    Environment = var.stage
   }
 }
 
