@@ -13,8 +13,8 @@ jobs:
         working-directory: ec2_deployment
     
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      ACCESS_KEY_VALUE: ${{ secrets.ACCESS_KEY_VALUE }}
+      SECRET_KEY_VALUE: ${{ secrets.SECRET_KEY_VALUE }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
       EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
       EC2_KEY_PAIR: ${{ secrets.EC2_KEY_PAIR }}
@@ -41,8 +41,8 @@ jobs:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-access-key-id: ${{ secrets.ACCESS_KEY_VALUE }}
+        aws-secret-access-key: ${{ secrets.SECRET_KEY_VALUE }}
         aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Initialize Terraform
@@ -81,6 +81,7 @@ jobs:
     - name: upload logs to S3
       run: |
         echo "Deployment complete for ${{ env.TF_VAR_stage }} at $(date)" > deploy.log
-        aws s3 cp deploy.log s3://$BUCKET_NAME/${{ env.TF_VAR_stage }}/
+        aws s3 cp deploy.log s3://${{ env.BUCKET_NAME }}/${{ env.TF_VAR_stage }}/
+
 
 
