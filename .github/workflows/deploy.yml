@@ -8,7 +8,7 @@ on:
 
 jobs:
   deploy:
-    environment: dev
+    environment: ${{ env.TF_VAR_stage }}
     runs-on: ubuntu-latest
     defaults:
       run:
