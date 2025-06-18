@@ -5,4 +5,5 @@ instance_user = "ubuntu"
 java_version = 21 
 shutdown_threshold = 20
 repo_url = "https://github.com/techeazy-consulting/techeazy-devops"
-bucket_name = "dev-config-bucket"
+bucket_name = "prod-config-bucket"
+stage = "prod"

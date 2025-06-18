@@ -1,0 +1,18 @@
+# AWS Credentials (Required)
+access_key_value = "YOUR_AWS_ACCESS_KEY"
+secret_key_value = "YOUR_AWS_SECRET_KEY"
+
+# SSH Keys (Required)
+ec2_private_key = "-----BEGIN OPENSSH PRIVATE KEY-----\nYOUR_PRIVATE_KEY_CONTENT\n-----END OPENSSH PRIVATE KEY-----"
+ec2_public_key  = "ssh-rsa YOUR_PUBLIC_KEY_CONTENT"
+
+# Optional: Override defaults
+aws_region      = "ap-south-1"
+ami_id          = "ami-02521d90e7410d9f0"
+instance_type   = "t2.micro"
+instance_user   = "ubuntu"
+java_version    = 21
+shutdown_threshold = 20
+repo_url        = "https://github.com/techeazy-consulting/techeazy-devops"
+bucket_name     = "your-deployment-bucket"
+stage           = "dev" 

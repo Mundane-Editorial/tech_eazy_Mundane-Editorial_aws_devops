@@ -1,13 +1,22 @@
 name: JAVA Application Deployment
 on:
   push:
-    branches: [master, feature/*]
-    tags: ['deploy-*']
+    branches: [main, feature/*]
+    tags: ['deploy-dev', 'deploy-prod']
   workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Deployment stage'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - prod
 
 jobs:
   deploy:
-    environment: dev
+    environment: ${{ github.event.inputs.stage || 'dev' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -25,29 +34,33 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
-    - name: Set TF_VAR_stage from tag or branch
+    - name: Set TF_VAR_stage from tag, branch, or input
+      id: set-stage
       run: |
         if [[ "${GITHUB_REF}" == refs/tags/deploy-* ]]; then
           STAGE="${GITHUB_REF#refs/tags/deploy-}"
-        elif [[ "${GITHUB_REF}" == refs/heads/* ]]; then
-          STAGE=$(basename "${GITHUB_REF}")
-        else
+        elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+          STAGE="prod"
+        elif [[ "${GITHUB_REF}" == refs/heads/feature/* ]]; then
           STAGE="dev"
+        else
+          STAGE="${{ github.event.inputs.stage || 'dev' }}"
         fi
         echo "TF_VAR_stage=$STAGE" >> $GITHUB_ENV
         echo "STAGE=$STAGE" >> $GITHUB_ENV
+        echo "stage=$STAGE" >> $GITHUB_OUTPUT
 
     - name: Install Terraform
       run: |
-        curl -LO https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
-        unzip terraform_1.5.7_linux_amd64.zip
+        curl -LO https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_linux_amd64.zip
+        unzip terraform_1.6.0_linux_amd64.zip
         sudo mv terraform /usr/local/bin/
         terraform -version
 
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v3
+      uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.ACCESS_KEY_VALUE }}
         aws-secret-access-key: ${{ secrets.SECRET_KEY_VALUE }}
@@ -56,7 +69,21 @@ jobs:
     - name: Terraform Init
       run: terraform init
 
-    - name: Terraform Apply (with fallback destroy on fail)
+    - name: Terraform Plan
+      id: plan
+      env:
+        TF_VAR_access_key_value: ${{ secrets.ACCESS_KEY_VALUE }}
+        TF_VAR_secret_key_value: ${{ secrets.SECRET_KEY_VALUE }}
+        TF_VAR_ec2_private_key: ${{ secrets.EC2_PRIVATE_KEY }}
+        TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
+      run: |
+        if [[ "${{ steps.set-stage.outputs.stage }}" == "prod" ]]; then
+          terraform plan -var-file=config/prod_config.tfvars
+        else
+          terraform plan -var-file=config/dev_config.tfvars
+        fi
+
+    - name: Terraform Apply
       id: apply
       continue-on-error: true
       env:
@@ -64,11 +91,26 @@ jobs:
         TF_VAR_secret_key_value: ${{ secrets.SECRET_KEY_VALUE }}
         TF_VAR_ec2_private_key: ${{ secrets.EC2_PRIVATE_KEY }}
         TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
-      run: terraform apply -auto-approve -var-file=config/dev_config.tfvars
+      run: |
+        if [[ "${{ steps.set-stage.outputs.stage }}" == "prod" ]]; then
+          terraform apply -auto-approve -var-file=config/prod_config.tfvars
+        else
+          terraform apply -auto-approve -var-file=config/dev_config.tfvars
+        fi
 
     - name: Terraform Destroy on Failure
       if: steps.apply.outcome == 'failure'
-      run: terraform destroy -auto-approve -var-file=config/dev_config.tfvars
+      env:
+        TF_VAR_access_key_value: ${{ secrets.ACCESS_KEY_VALUE }}
+        TF_VAR_secret_key_value: ${{ secrets.SECRET_KEY_VALUE }}
+        TF_VAR_ec2_private_key: ${{ secrets.EC2_PRIVATE_KEY }}
+        TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
+      run: |
+        if [[ "${{ steps.set-stage.outputs.stage }}" == "prod" ]]; then
+          terraform destroy -auto-approve -var-file=config/prod_config.tfvars
+        else
+          terraform destroy -auto-approve -var-file=config/dev_config.tfvars
+        fi
 
     - name: Output EC2 IP
       if: steps.apply.outcome == 'success'
@@ -77,44 +119,69 @@ jobs:
         IP=$(terraform output -raw ec2_instance_ip)
         echo "EC2_IP=$IP" >> $GITHUB_ENV
         echo "Public IP: $IP"
+        echo "ip=$IP" >> $GITHUB_OUTPUT
 
     - name: Setup SSH Key
       if: steps.apply.outcome == 'success'
       run: |
         echo "${{ secrets.EC2_PRIVATE_KEY }}" > id_rsa
         chmod 600 id_rsa
+        echo "${{ secrets.EC2_PUBLIC_KEY }}" > id_rsa.pub
 
     - name: Wait for SSH (retry)
       if: steps.apply.outcome == 'success'
       run: |
-        for i in {1..10}; do
-          echo "Waiting for SSH @ $EC2_IP ..."
-          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ env.EC2_USER }}@${{ env.EC2_IP }} 'echo Connected' && break
-          sleep 10
+        for i in {1..15}; do
+          echo "Attempt $i: Waiting for SSH @ ${{ steps.ec2_ip.outputs.ip }} ..."
+          if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i id_rsa ${{ env.EC2_USER }}@${{ steps.ec2_ip.outputs.ip }} 'echo SSH connection successful'; then
+            echo "SSH connection established successfully"
+            break
+          fi
+          if [ $i -eq 15 ]; then
+            echo "Failed to establish SSH connection after 15 attempts"
+            exit 1
+          fi
+          sleep 15
         done
 
     - name: Upload setup.sh and execute
       if: steps.apply.outcome == 'success'
       run: |
-        scp -o StrictHostKeyChecking=no -i id_rsa scripts/setup.sh ${{ env.EC2_USER }}@${{ env.EC2_IP }}:/tmp/setup.sh
-        ssh -o StrictHostKeyChecking=no -i id_rsa ${{ env.EC2_USER }}@${{ env.EC2_IP }} "chmod +x /tmp/setup.sh && /tmp/setup.sh"
+        scp -o StrictHostKeyChecking=no -i id_rsa scripts/setup.sh ${{ env.EC2_USER }}@${{ steps.ec2_ip.outputs.ip }}:/tmp/setup.sh
+        ssh -o StrictHostKeyChecking=no -i id_rsa ${{ env.EC2_USER }}@${{ steps.ec2_ip.outputs.ip }} "chmod +x /tmp/setup.sh && /tmp/setup.sh ${{ env.JAVA_VERSION }} ${{ env.REPO_URL }} ${{ env.SHUTDOWN_THRESHOLD }} ${{ env.BUCKET_NAME }}"
 
     - name: Health Check
       if: steps.apply.outcome == 'success'
       run: |
-        for i in {1..10}; do
-          if curl -s --head http://${{ env.EC2_IP }} | grep "200 OK"; then
-            echo "Health check passed."
+        echo "Starting health check for ${{ steps.ec2_ip.outputs.ip }}:8080"
+        for i in {1..20}; do
+          echo "Health check attempt $i..."
+          if curl -s --max-time 10 http://${{ steps.ec2_ip.outputs.ip }}:8080 | grep -q "Welcome\|Hello\|Application"; then
+            echo "Health check passed! Application is running on port 8080"
+            exit 0
+          elif curl -s --max-time 10 http://${{ steps.ec2_ip.outputs.ip }}:8080 > /dev/null; then
+            echo "Health check passed! Application is responding on port 8080"
             exit 0
           fi
-          echo "Retrying health check..."
-          sleep 5
+          echo "Health check attempt $i failed, retrying in 10 seconds..."
+          sleep 10
         done
-        echo "Health check failed."
+        echo "Health check failed after 20 attempts"
         exit 1
 
     - name: Upload Deployment Log
+      if: always()
       run: |
         mkdir -p logs
-        echo "Deployment log for $STAGE at $(date)" > logs/deploy.log
-        aws s3 cp logs/deploy.log s3://${{ env.BUCKET_NAME }}/$STAGE/deploy-$(date +%s).log
+        echo "Deployment log for ${{ steps.set-stage.outputs.stage }} at $(date)" > logs/deploy.log
+        echo "GitHub Run ID: ${{ github.run_id }}" >> logs/deploy.log
+        echo "Commit: ${{ github.sha }}" >> logs/deploy.log
+        echo "Branch: ${{ github.ref }}" >> logs/deploy.log
+        echo "Stage: ${{ steps.set-stage.outputs.stage }}" >> logs/deploy.log
+        if [ "${{ steps.apply.outcome }}" == "success" ]; then
+          echo "Status: SUCCESS" >> logs/deploy.log
+          echo "EC2 IP: ${{ steps.ec2_ip.outputs.ip }}" >> logs/deploy.log
+        else
+          echo "Status: FAILED" >> logs/deploy.log
+        fi
+        aws s3 cp logs/deploy.log s3://${{ env.BUCKET_NAME }}/${{ steps.set-stage.outputs.stage }}/deploy-$(date +%s).log

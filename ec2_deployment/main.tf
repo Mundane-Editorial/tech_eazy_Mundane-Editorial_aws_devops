@@ -1,24 +1,3 @@
-# resource "null_resource" "generate_ssh_key" {
-#   provisioner "local-exec" {
-#     command = <<EOT
-#       mkdir -p ${path.module}/key_pair
-#       if [ ! -f "${path.module}/key_pair/id_rsa" ]; then
-#         ssh-keygen -t rsa -b 2048 -f ${path.module}/key_pair/id_rsa -q -N ""
-#       fi
-#     EOT
-#   }
-
-#   triggers = {
-#     always_run = "${timestamp()}"
-#   }
-# }
-
-# resource "aws_key_pair" "generated_key" {
-#   depends_on = [null_resource.generate_ssh_key]
-#   key_name   = var.ec2_key_name
-#   public_key = file("${path.module}/key_pair/id_rsa.pub")
-# }
-
 resource "aws_instance" "Java-Application" {
   ami                    = var.ami_id
   instance_type          = var.instance_type
@@ -56,4 +35,4 @@ resource "aws_instance" "Java-Application" {
     Name        = "Java-Application-${var.stage}"
     Environment = var.stage
   }
-}
+} 
