@@ -2,6 +2,11 @@
 resource "aws_iam_instance_profile" "Java-Application-Profile" {
   name = "Java-Application-Profile"
   role = aws_iam_role.uploadonly_s3_role.name
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [name]
+  }
 }
 
 # EC2 role to allow upload-only access to S3
