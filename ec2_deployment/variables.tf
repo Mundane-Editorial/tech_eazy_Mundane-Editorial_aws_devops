@@ -75,3 +75,9 @@ variable "ec2_public_key" {
   type        = string
   sensitive   = true
 }
+
+variable "ec2_key_name" {
+  description = "Name of existing EC2 key pair"
+  type        = string
+  default     = "Java-Application-Key"
+}

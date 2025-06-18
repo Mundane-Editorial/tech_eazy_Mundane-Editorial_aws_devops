@@ -2,27 +2,19 @@ name: JAVA Application Deployment
 on:
   push:
     branches: [master, feature/*]
-    tags:
-      - 'deploy-*'
+    tags: ['deploy-*']
   workflow_dispatch:
 
 jobs:
   deploy:
-    environment: dev
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ec2_deployment
-    
-    env:
-      ACCESS_KEY_VALUE: ${{ secrets.ACCESS_KEY_VALUE }}
-      SECRET_KEY_VALUE: ${{ secrets.SECRET_KEY_VALUE }}
-      EC2_PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
 
+    env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       BUCKET_NAME: ${{ vars.BUCKET_NAME }}
-      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
-      EC2_KEY_PAIR: ${{ vars.EC2_KEY_PAIR }}
       EC2_USER: ${{ vars.INSTANCE_USER }}
       AMI_ID: ${{ vars.AMI_ID }}
       INSTANCE_TYPE: ${{ vars.INSTANCE_TYPE }}
@@ -31,39 +23,27 @@ jobs:
       SHUTDOWN_THRESHOLD: ${{ vars.SHUTDOWN_THRESHOLD }}
 
     steps:
-    - name: Checkout code
+    - name: Checkout Code
       uses: actions/checkout@v3
 
-    - name: Set stage from tag
-      if: startsWith(github.ref, 'refs/tags/deploy-')
+    - name: Set TF_VAR_stage from tag or branch
       run: |
-        if [[ "$GITHUB_REF" == refs/tags/deploy-* ]]; then
+        if [[ "${GITHUB_REF}" == refs/tags/deploy-* ]]; then
           STAGE="${GITHUB_REF#refs/tags/deploy-}"
-        elif [[ "$GITHUB_REF" == refs/heads/* ]]; then
-          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          STAGE=$(echo "$BRANCH_NAME" | cut -d'/' -f1)
+        elif [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+          STAGE=$(basename "${GITHUB_REF}")
         else
           STAGE="dev"
         fi
         echo "TF_VAR_stage=$STAGE" >> $GITHUB_ENV
+        echo "STAGE=$STAGE" >> $GITHUB_ENV
 
     - name: Install Terraform
       run: |
-        sudo apt-get update
-        sudo apt-get install -y unzip
-        curl -LO "https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip"
+        curl -LO https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
         unzip terraform_1.5.7_linux_amd64.zip
         sudo mv terraform /usr/local/bin/
         terraform -version
-
-    - name: vaildate environemnt variables
-      run: |
-        echo "AWS_REGION: ${{ vars.AWS_REGION }}"
-        echo "EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}"
-        echo "EC2_KEY_PAIR: ${{ vars.EC2_KEY_PAIR }}"
-        echo "EC2_USER: ${{ vars.EC2_USER }}"
-        echo "BUCKET_NAME: ${{ vars.BUCKET_NAME }}"
-        echo "TF_VAR_stage: ${{ env.TF_VAR_stage  || 'dev' }}"
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v3
@@ -72,50 +52,68 @@ jobs:
         aws-secret-access-key: ${{ secrets.SECRET_KEY_VALUE }}
         aws-region: ${{ env.AWS_REGION }}
 
-    - name: Initialize Terraform
+    - name: Terraform Init
       run: terraform init
 
-    - name: Terraform apply
+    - name: Terraform Apply (with fallback destroy on fail)
+      id: apply
+      continue-on-error: true
       env:
         TF_VAR_access_key_value: ${{ secrets.ACCESS_KEY_VALUE }}
         TF_VAR_secret_key_value: ${{ secrets.SECRET_KEY_VALUE }}
-        TF_VAR_stage: ${{ env.TF_VAR_stage }}
         TF_VAR_ec2_private_key: ${{ secrets.EC2_PRIVATE_KEY }}
         TF_VAR_ec2_public_key: ${{ secrets.EC2_PUBLIC_KEY }}
       run: terraform apply -auto-approve -var-file=config/dev_config.tfvars
 
+    - name: Terraform Destroy on Failure
+      if: steps.apply.outcome == 'failure'
+      run: terraform destroy -auto-approve -var-file=config/dev_config.tfvars
 
-    - name: Get EC2 Public IP
+    - name: Output EC2 IP
+      if: steps.apply.outcome == 'success'
       id: ec2_ip
-      run: echo "EC2_IP=$(terraform output -raw ec2_instance_ip)" >> $GITHUB_ENV
-
-    - name: add SSH key to the agent
       run: |
-        echo "${{ env.EC2_PRIVATE_KEY }}" > id_rsa
+        IP=$(terraform output -raw ec2_instance_ip)
+        echo "EC2_IP=$IP" >> $GITHUB_ENV
+        echo "Public IP: $IP"
+
+    - name: Setup SSH Key
+      if: steps.apply.outcome == 'success'
+      run: |
+        echo "${{ secrets.EC2_PRIVATE_KEY }}" > id_rsa
         chmod 600 id_rsa
 
-    - name: SSH and Run Setup Script
+    - name: Wait for SSH (retry)
+      if: steps.apply.outcome == 'success'
+      run: |
+        for i in {1..10}; do
+          echo "Waiting for SSH @ $EC2_IP ..."
+          ssh -o StrictHostKeyChecking=no -i id_rsa ${{ env.EC2_USER }}@${{ env.EC2_IP }} 'echo Connected' && break
+          sleep 10
+        done
+
+    - name: Upload setup.sh and execute
+      if: steps.apply.outcome == 'success'
       run: |
         scp -o StrictHostKeyChecking=no -i id_rsa scripts/setup.sh ${{ env.EC2_USER }}@${{ env.EC2_IP }}:/tmp/setup.sh
-        ssh -o StrictHostKeyChecking=no -i id_rsa ${{ env.EC2_USER }}@${{ env.EC2_IP }} "bash /tmp/setup.sh"
+        ssh -o StrictHostKeyChecking=no -i id_rsa ${{ env.EC2_USER }}@${{ env.EC2_IP }} "chmod +x /tmp/setup.sh && /tmp/setup.sh"
 
     - name: Health Check
+      if: steps.apply.outcome == 'success'
       run: |
         for i in {1..10}; do
           if curl -s --head http://${{ env.EC2_IP }} | grep "200 OK"; then
-            echo "App running..."
+            echo "Health check passed."
             exit 0
           fi
-          echo "Waiting..."
+          echo "Retrying health check..."
           sleep 5
         done
-        echo "App running status failed..."
+        echo "Health check failed."
         exit 1
 
-    - name: upload logs to S3
+    - name: Upload Deployment Log
       run: |
-        echo "Deployment complete for ${{ env.TF_VAR_stage  || 'dev' }} at $(date)" > deploy.log
-        aws s3 cp deploy.log s3://${{ env.BUCKET_NAME }}/dev/
-
-
-#deploy.yml not working properly :: its not working as expected
+        mkdir -p logs
+        echo "Deployment log for $STAGE at $(date)" > logs/deploy.log
+        aws s3 cp logs/deploy.log s3://${{ env.BUCKET_NAME }}/$STAGE/deploy-$(date +%s).log
