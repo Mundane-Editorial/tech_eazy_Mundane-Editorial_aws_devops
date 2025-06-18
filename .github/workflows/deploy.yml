@@ -123,18 +123,34 @@ jobs:
     - name: Deploy Application
       run: |
         echo "Deploying application to EC2 instance..."
+        echo "EC2 Public IP: ${{ env.EC2_PUBLIC_IP }}"
+        echo "Instance User: ${{ vars.INSTANCE_USER }}"
+        echo "Java Version: ${{ vars.JAVA_VERSION }}"
+        echo "Repo URL: ${{ vars.REPO_URL }}"
+        echo "Bucket Name: ${{ vars.BUCKET_NAME }}"
         
         # Copy setup script to EC2
+        echo "Copying setup script to EC2..."
         scp -i ~/.ssh/id_rsa ec2_deployment/scripts/setup.sh ${{ vars.INSTANCE_USER }}@${{ env.EC2_PUBLIC_IP }}:/home/${{ vars.INSTANCE_USER }}/
         
-        # Execute setup script
-        ssh -i ~/.ssh/id_rsa ${{ vars.INSTANCE_USER }}@${{ env.EC2_PUBLIC_IP }} << 'EOF'
+        # Execute setup script with proper variable expansion
+        echo "Executing setup script on EC2..."
+        ssh -i ~/.ssh/id_rsa ${{ vars.INSTANCE_USER }}@${{ env.EC2_PUBLIC_IP }} << EOF
+          echo "Starting deployment on EC2..."
           chmod +x /home/${{ vars.INSTANCE_USER }}/setup.sh
+          echo "Executing setup script with parameters:"
+          echo "  Java Version: ${{ vars.JAVA_VERSION }}"
+          echo "  Repo URL: ${{ vars.REPO_URL }}"
+          echo "  Shutdown Threshold: ${{ vars.SHUTDOWN_THRESHOLD }}"
+          echo "  Bucket Name: ${{ vars.BUCKET_NAME }}"
+          
           /home/${{ vars.INSTANCE_USER }}/setup.sh \
             ${{ vars.JAVA_VERSION }} \
-            ${{ vars.REPO_URL }} \
+            "${{ vars.REPO_URL }}" \
             ${{ vars.SHUTDOWN_THRESHOLD }} \
-            ${{ vars.BUCKET_NAME }}
+            "${{ vars.BUCKET_NAME }}"
+          
+          echo "Setup script completed"
         EOF
 
     - name: Wait for application to start
