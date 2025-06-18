@@ -1,6 +1,11 @@
 resource "aws_key_pair" "Java-Application-Key" {
-  key_name   = "Java-Application-Key"
+  key_name   = var.ec2_key_name
   public_key = var.ec2_public_key
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [public_key]
+  }
 }
 
 resource "aws_security_group" "Java-Application-SG" {

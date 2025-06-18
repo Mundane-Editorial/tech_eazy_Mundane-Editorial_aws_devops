@@ -64,17 +64,17 @@ variable "stage" {
   type        = string
 }
 
-# variable "ec2_private_key" {
-#   description = "Private key for EC2 SSH provisioning"
-#   type        = string
-#   sensitive   = true
-# }
+variable "ec2_private_key" {
+  description = "Private key for SSH access"
+  type        = string
+  sensitive   = true
+}
 
-# variable "ec2_public_key" {
-#   description = "Public key for EC2 SSH provisioning"
-#   type        = string
-#   sensitive   = true
-# }
+variable "ec2_public_key" {
+  description = "Public key for SSH access"
+  type        = string
+  sensitive   = true
+}
 
 variable "ec2_key_name" {
   description = "Name of existing EC2 key pair"
