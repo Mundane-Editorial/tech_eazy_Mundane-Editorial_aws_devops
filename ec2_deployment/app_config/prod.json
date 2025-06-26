@@ -1,0 +1,39 @@
+{
+  "environment": "production",
+  "debug": false,
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0"
+  },
+  "database": {
+    "host": "prod-db.example.com",
+    "port": 5432,
+    "username": "prod_user",
+    "password": "prod_password",
+    "name": "prod_db"
+  },
+  "logging": {
+    "level": "ERROR",
+    "file": "/app/logs/app.log",
+    "s3_bucket": "prod-config-bucket",
+    "s3_path": "logs/prod/"
+  },
+  "feature_flags": {
+    "new_ui": true,
+    "beta_feature": false,
+    "experimental_mode": false
+  },
+  "api": {
+    "base_url": "https://api.example.com",
+    "timeout": 60000,
+    "retry_attempts": 5
+  },
+  "security": {
+    "cors_enabled": true,
+    "allowed_origins": ["https://example.com", "https://www.example.com"]
+  },
+  "monitoring": {
+    "health_check_interval": 60,
+    "metrics_enabled": true
+  }
+} 

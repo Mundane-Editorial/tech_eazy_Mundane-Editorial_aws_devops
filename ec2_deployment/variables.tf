@@ -59,3 +59,25 @@ variable "bucket_name" {
   }
 }
 
+variable "stage" {
+  description = "Deployment stage (dev, qa, prod)"
+  type        = string
+}
+
+variable "config_repo_url" {
+  description = "Config repository URL (public or private)"
+  type        = string
+}
+
+variable "config_repo_private" {
+  description = "Is the config repo private?"
+  type        = bool
+  default     = false
+}
+
+variable "git_token" {
+  description = "GitHub token for private repo access (set from Git_Token secret in GitHub Actions)"
+  type        = string
+  default     = ""
+}
+

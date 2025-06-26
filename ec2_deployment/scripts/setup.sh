@@ -5,11 +5,12 @@ java_version=$1
 repo_url=$2
 shutdown_threshold=$3
 bucket_name=$4
+stage=$5
 
-echo "Starting setup with Java version: $java_version"
-echo "Repository URL: $repo_url"
-echo "Shutdown threshold: $shutdown_threshold"
-echo "Bucket name: $bucket_name"
+echo "Starting setup for stage: $stage"
+echo "Java version: $java_version"
+echo "Repository: $repo_url"
+echo "Shutdown threshold: $shutdown_threshold minutes"
 
 # System update and prerequisites
 echo "Updating system packages..."
@@ -33,10 +34,11 @@ else
     sudo apt install -y default-jdk
 fi
 
-echo "Java version installed:"
-java -version
+# Install jq for JSON parsing
+echo "Installing jq for JSON parsing..."
+sudo apt install -y jq
 
-# Install AWS CLI
+# Install AWS CLI if not present
 if ! command -v aws &> /dev/null; then
     echo "Installing AWS CLI..."
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
@@ -44,11 +46,50 @@ if ! command -v aws &> /dev/null; then
     sudo ./aws/install
 fi
 
+# Load configuration from JSON file
+echo "Loading configuration from app_config.json..."
+if [ -f "/home/$USER/app_config.json" ]; then
+    echo "Configuration file found, parsing..."
+    
+    # Read config values
+    ENVIRONMENT=$(jq -r '.environment' /home/$USER/app_config.json)
+    DEBUG_MODE=$(jq -r '.debug' /home/$USER/app_config.json)
+    LOG_LEVEL=$(jq -r '.logging.level' /home/$USER/app_config.json)
+    S3_BUCKET=$(jq -r '.logging.s3_bucket' /home/$USER/app_config.json)
+    S3_PATH=$(jq -r '.logging.s3_path' /home/$USER/app_config.json)
+    SERVER_PORT=$(jq -r '.server.port' /home/$USER/app_config.json)
+    
+    echo "=== Configuration Loaded ==="
+    echo "Environment: $ENVIRONMENT"
+    echo "Debug mode: $DEBUG_MODE"
+    echo "Log level: $LOG_LEVEL"
+    echo "S3 bucket: $S3_BUCKET"
+    echo "S3 path: $S3_PATH"
+    echo "Server port: $SERVER_PORT"
+    echo "=========================="
+    
+    # Export environment variables
+    export APP_ENVIRONMENT=$ENVIRONMENT
+    export APP_DEBUG=$DEBUG_MODE
+    export APP_LOG_LEVEL=$LOG_LEVEL
+    export APP_S3_BUCKET=$S3_BUCKET
+    export APP_S3_PATH=$S3_PATH
+    export APP_SERVER_PORT=$SERVER_PORT
+    
+else
+    echo "Warning: app_config.json not found, using default values"
+    ENVIRONMENT="unknown"
+    DEBUG_MODE="false"
+    LOG_LEVEL="INFO"
+    S3_BUCKET=$bucket_name
+    S3_PATH="logs/$stage/"
+    SERVER_PORT=8080
+fi
+
 # Clone and build application
 echo "Cloning repository: $repo_url"
 git clone ${repo_url}
 REPO_NAME=$(basename -s .git ${repo_url})
-echo "Repository name: $REPO_NAME"
 cd $REPO_NAME
 
 # Check if Maven wrapper exists
@@ -62,20 +103,32 @@ else
     mvn clean package
 fi
 
-# Run application
-echo "Starting application..."
+# Run application with config
+echo "Starting application with configuration..."
 JAR_FILE=$(find target -type f -name "*.jar" | head -n 1)
-echo "JAR file found: $JAR_FILE"
 
 if [ -n "$JAR_FILE" ]; then
-    nohup java -jar $JAR_FILE --server.port=8080 > app.log 2>&1 &
+    # Start application with environment variables and config
+    nohup java -jar $JAR_FILE \
+        --server.port=$SERVER_PORT \
+        --spring.profiles.active=$ENVIRONMENT \
+        --logging.level.root=$LOG_LEVEL \
+        --app.debug=$DEBUG_MODE \
+        --app.environment=$ENVIRONMENT \
+        > app.log 2>&1 &
+    
     echo "Application started with PID: $!"
+    echo "Application configuration:"
+    echo "  Port: $SERVER_PORT"
+    echo "  Environment: $ENVIRONMENT"
+    echo "  Debug: $DEBUG_MODE"
+    echo "  Log level: $LOG_LEVEL"
 else
     echo "No JAR file found in target directory!"
     exit 1
 fi
 
-# Wait a moment for application to start
+# Wait for application to start
 sleep 10
 
 # Create and upload app logs
@@ -83,9 +136,9 @@ echo "Setting up logging..."
 sudo mkdir -p /app/logs
 sudo mv app.log /app/logs/app.log 2>/dev/null || echo "app.log not found, continuing..."
 
-# Upload logs to S3
-echo "Uploading logs to S3..."
-aws s3 cp /app/logs/ s3://${bucket_name}/app/logs/ --recursive || echo "Failed to upload logs to S3"
+# Upload logs to stage-specific S3 folder
+echo "Uploading logs to S3 for stage $stage..."
+aws s3 cp /app/logs/ s3://${S3_BUCKET}/${S3_PATH} --recursive || echo "Failed to upload logs to S3"
 
 # Setup shutdown service to upload EC2 logs
 echo "Setting up shutdown service..."
@@ -98,7 +151,7 @@ Before=shutdown.target
 [Service]
 Type=oneshot
 ExecStart=/bin/true
-ExecStop=/usr/bin/aws s3 cp /var/log/cloud-init.log s3://${bucket_name}/ec2-logs/
+ExecStop=/usr/bin/aws s3 cp /var/log/cloud-init.log s3://${S3_BUCKET}/ec2-logs/
 RemainAfterExit=yes
 
 [Install]
@@ -113,3 +166,5 @@ echo "Scheduling shutdown in $shutdown_threshold minutes..."
 sudo shutdown -h +${shutdown_threshold}
 
 echo "Setup completed successfully!"
+echo "Application is running with $ENVIRONMENT configuration"
+echo "Access your application at: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):$SERVER_PORT"

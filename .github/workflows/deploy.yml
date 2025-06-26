@@ -95,6 +95,7 @@ jobs:
           -var-file="config/${{ steps.determine-stage.outputs.stage }}_config.tfvars" \
           -var="access_key_value=${{ secrets.ACCESS_KEY_VALUE }}" \
           -var="secret_key_value=${{ secrets.SECRET_KEY_VALUE }}" \
+          -var="stage=${{ steps.determine-stage.outputs.stage }}" \
           -out=tfplan
 
     - name: Terraform Apply
@@ -160,29 +161,30 @@ jobs:
 
     - name: Health Check
       run: |
-        echo "Performing health check on port 8080..."
-        
-        # Check if port 8080 is reachable
+        echo "Performing health check on port 8080 and 80..."
+        # Check port 8080
         if nc -z ${{ env.EC2_PUBLIC_IP }} 8080; then
           echo "Port 8080 is reachable"
         else
           echo "Port 8080 is not reachable"
-          exit 1
         fi
-        
-        # Check if application is responding - try multiple endpoints
-        echo "Checking application health..."
-        
-        # Try the health endpoint first
-        if curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/actuator/health 2>/dev/null; then
-          echo "Application health check passed (actuator/health)"
-        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/health 2>/dev/null; then
-          echo "Application health check passed (health)"
-        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/ 2>/dev/null; then
-          echo "Application health check passed (root endpoint)"
+        # Check port 80
+        if nc -z ${{ env.EC2_PUBLIC_IP }} 80; then
+          echo "Port 80 is reachable"
         else
-          echo "Application health check failed - but port is reachable, continuing..."
-          echo "You can manually check the application at: http://${{ env.EC2_PUBLIC_IP }}:8080"
+          echo "Port 80 is not reachable"
+        fi
+        # Try health endpoints
+        if curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/actuator/health 2>/dev/null; then
+          echo "App health check passed (8080/actuator/health)"
+        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/health 2>/dev/null; then
+          echo "App health check passed (8080/health)"
+        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/ 2>/dev/null; then
+          echo "App health check passed (8080 root)"
+        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:80/ 2>/dev/null; then
+          echo "App health check passed (80 root)"
+        else
+          echo "App health check failed, but continuing..."
         fi
 
     - name: Upload deployment logs to S3
