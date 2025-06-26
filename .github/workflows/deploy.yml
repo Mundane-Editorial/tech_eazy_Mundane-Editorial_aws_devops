@@ -2,9 +2,15 @@ name: Deploy to AWS
 
 on:
   push:
-    branches: [ master,  feature/* ]
+    branches: [ master, feature/* ]
+    paths-ignore:
+      - './ec2_deployment/config/*'
+      - 'README.md'
   pull_request:
     branches: [ master ]
+    paths-ignore:
+      - './ec2_deployment/config/*'
+      - 'README.md'
   workflow_dispatch:
     inputs:
       stage:
