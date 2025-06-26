@@ -161,3 +161,66 @@ key_pair/id_rsa.pub
 ```
 
 ---
+
+
+
+# Multi-Stage AWS DevOps Deployment
+
+## Folder Structure
+
+```
+tech_eazy_Mundane-Editorial_aws_devops/
+├── ec2_deployment/
+│   ├── app_config/
+│   │   ├── dev.json         # Development environment config
+│   │   └── prod.json        # Production environment config
+│   ├── config/
+│   │   ├── dev_config.tfvars
+│   │   └── prod_config.tfvars
+│   ├── IAM_roles.tf
+│   ├── key_pair/
+│   ├── main.tf
+│   ├── outputs.tf
+│   ├── provider.tf
+│   ├── resources.tf
+│   ├── s3_bucket.tf
+│   ├── scripts/
+│   │   ├── deploy.sh
+│   │   └── setup.sh
+│   ├── terraform.tfstate
+│   ├── terraform.tfstate.backup
+│   ├── terraform.tfvars
+│   └── variables.tf
+├── .github/
+│   └── workflows/
+│       └── deploy.yml
+├── README.md
+└── terraform.tfstate
+```
+
+## Configuration Files for Each Stage
+
+- **Development:** `ec2_deployment/app_config/dev.json`
+- **Production:**  `ec2_deployment/app_config/prod.json`
+
+Each JSON file contains environment-specific settings (e.g., debug mode, log level, S3 bucket, etc.) that are automatically copied to the EC2 instance and used by the application at runtime.
+
+## How Multi-Stage Deployment Works
+
+1. **Trigger:**
+   - Push to a branch or manually trigger the workflow in GitHub Actions.
+2. **Stage Detection:**
+   - The workflow determines the stage (`dev` or `prod`) based on the branch or input.
+3. **Terraform:**
+   - Provisions AWS resources and copies the correct config file from `app_config/` to the EC2 instance as `/home/ubuntu/app_config.json`.
+4. **Setup Script:**
+   - Installs dependencies, parses the JSON config, and starts the application with the correct settings for the stage.
+5. **Logs:**
+   - Application logs are uploaded to a stage-specific S3 folder (e.g., `logs/dev/`, `logs/prod/`).
+
+## Summary
+- Place your environment configs in `ec2_deployment/app_config/`.
+- The deployment pipeline will automatically use the correct config for each stage.
+- To add a new stage, just add a new JSON config and (optionally) a tfvars file.
+
+---
