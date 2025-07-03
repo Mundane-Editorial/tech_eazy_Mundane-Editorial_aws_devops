@@ -6,3 +6,4 @@ java_version = 21
 shutdown_threshold = 60
 repo_url = "https://github.com/techeazy-consulting/techeazy-devops"
 bucket_name = "prod-config-bucket" 
+alert_email = "work.udayrana@gmail.com" 

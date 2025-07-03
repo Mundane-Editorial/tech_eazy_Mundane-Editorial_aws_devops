@@ -70,3 +70,7 @@ variable "git_token" {
   default     = ""
 }
 
+variable "alert_email" {
+  description = "Email address for SNS alerts"
+  type        = string
+}

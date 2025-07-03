@@ -136,6 +136,27 @@ echo "Setting up logging..."
 sudo mkdir -p /app/logs
 sudo mv app.log /app/logs/app.log 2>/dev/null || echo "app.log not found, continuing..."
 
+# Install and configure CloudWatch Agent
+CWA_CONFIG_SRC="/home/$USER/app_config/cloudwatch-agent-config.json"
+CWA_CONFIG_DST="/opt/aws/amazon-cloudwatch-agent/etc/cloudwatch-agent-config.json"
+
+if [ -f "$CWA_CONFIG_SRC" ]; then
+    echo "Installing CloudWatch Agent..."
+    sudo wget -q https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+    sudo dpkg -i amazon-cloudwatch-agent.deb
+    echo "Copying CloudWatch Agent config..."
+    sudo mkdir -p /opt/aws/amazon-cloudwatch-agent/etc/
+    sudo cp "$CWA_CONFIG_SRC" "$CWA_CONFIG_DST"
+    echo "Starting CloudWatch Agent..."
+    sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+      -a fetch-config \
+      -m ec2 \
+      -c file:$CWA_CONFIG_DST \
+      -s
+else
+    echo "CloudWatch Agent config not found, skipping CloudWatch Agent setup."
+fi
+
 # Upload logs to stage-specific S3 folder
 echo "Uploading logs to S3 for stage $stage..."
 aws s3 cp /app/logs/ s3://${S3_BUCKET}/${S3_PATH} --recursive || echo "Failed to upload logs to S3"

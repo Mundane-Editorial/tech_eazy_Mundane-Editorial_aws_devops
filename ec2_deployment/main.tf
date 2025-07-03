@@ -39,5 +39,4 @@ resource "aws_instance" "Java-Application" {
   }
 }
 
-
 //test
