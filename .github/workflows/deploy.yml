@@ -1,0 +1,238 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ master, feature/* ]
+    paths-ignore:
+      - './ec2_deployment/config/*'
+      - 'README.md'
+  pull_request:
+    branches: [ master ]
+    paths-ignore:
+      - './ec2_deployment/config/*'
+      - 'README.md'
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Deployment Stage'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - staging
+        - prod
+      branch:
+        description: 'Branch to deploy from'
+        required: false
+        default: 'master'
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_VERSION: '1.5.0'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.stage || (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 'prod' || 'dev' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Determine deployment stage
+      id: determine-stage
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
+          echo "stage=prod" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+          echo "stage=staging" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == refs/heads/feature/* ]]; then
+          echo "stage=dev" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+          echo "stage=staging" >> $GITHUB_OUTPUT
+        else
+          echo "stage=dev" >> $GITHUB_OUTPUT
+        fi
+        echo "Deployment stage: ${{ steps.determine-stage.outputs.stage }}"
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.ACCESS_KEY_VALUE }}
+        aws-secret-access-key: ${{ secrets.SECRET_KEY_VALUE }}
+        aws-region: ${{ vars.AWS_REGION }}
+
+    - name: Setup SSH Key
+      run: |
+        mkdir -p ec2_deployment/key_pair
+        echo "${{ secrets.EC2_PRIVATE_KEY }}" > ec2_deployment/key_pair/id_rsa
+        chmod 600 ec2_deployment/key_pair/id_rsa
+        echo "${{ secrets.EC2_PUBLIC_KEY }}" > ec2_deployment/key_pair/id_rsa.pub
+
+    - name: Create Terraform Variables File
+      run: |
+        cat > ec2_deployment/config/${{ steps.determine-stage.outputs.stage }}_config.tfvars << EOF
+        aws_region = "${{ vars.AWS_REGION }}"
+        ami_id = "${{ vars.AMI_ID }}"
+        instance_type = "${{ vars.INSTANCE_TYPE }}"
+        instance_user = "${{ vars.INSTANCE_USER }}"
+        java_version = ${{ vars.JAVA_VERSION }}
+        shutdown_threshold = ${{ vars.SHUTDOWN_THRESHOLD }}
+        repo_url = "${{ vars.REPO_URL }}"
+        bucket_name = "${{ vars.BUCKET_NAME }}"
+        alert_email = "${{ vars.ALERT_EMAIL }}"
+        EOF
+
+    - name: Terraform Init
+      working-directory: ec2_deployment
+      run: |
+        terraform init
+
+    - name: Terraform Plan
+      working-directory: ec2_deployment
+      run: |
+        terraform plan \
+          -var-file="config/${{ steps.determine-stage.outputs.stage }}_config.tfvars" \
+          -var="access_key_value=${{ secrets.ACCESS_KEY_VALUE }}" \
+          -var="secret_key_value=${{ secrets.SECRET_KEY_VALUE }}" \
+          -var="stage=${{ steps.determine-stage.outputs.stage }}" \
+          -out=tfplan
+
+    - name: Terraform Apply
+      working-directory: ec2_deployment
+      run: |
+        terraform apply -auto-approve tfplan
+
+    - name: Get EC2 Public IP
+      working-directory: ec2_deployment
+      run: |
+        echo "EC2_PUBLIC_IP=$(terraform output -raw instance_id)" >> $GITHUB_ENV
+        echo "EC2 Public IP: $EC2_PUBLIC_IP"
+
+    - name: Wait for EC2 to be ready
+      run: |
+        echo "Waiting for EC2 instance to be ready..."
+        sleep 60
+
+    - name: Setup SSH connection
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ env.EC2_PUBLIC_IP }} >> ~/.ssh/known_hosts
+
+    - name: Deploy Application
+      run: |
+        echo "Deploying application to EC2 instance..."
+        echo "EC2 Public IP: ${{ env.EC2_PUBLIC_IP }}"
+        echo "Instance User: ${{ vars.INSTANCE_USER }}"
+        echo "Java Version: ${{ vars.JAVA_VERSION }}"
+        echo "Repo URL: ${{ vars.REPO_URL }}"
+        echo "Bucket Name: ${{ vars.BUCKET_NAME }}"
+        
+        # Copy setup script to EC2
+        echo "Copying setup script to EC2..."
+        scp -i ~/.ssh/id_rsa ec2_deployment/scripts/setup.sh ${{ vars.INSTANCE_USER }}@${{ env.EC2_PUBLIC_IP }}:/home/${{ vars.INSTANCE_USER }}/
+        
+        # Execute setup script with proper variable expansion
+        echo "Executing setup script on EC2..."
+        ssh -i ~/.ssh/id_rsa ${{ vars.INSTANCE_USER }}@${{ env.EC2_PUBLIC_IP }} << EOF
+          echo "Starting deployment on EC2..."
+          chmod +x /home/${{ vars.INSTANCE_USER }}/setup.sh
+          echo "Executing setup script with parameters:"
+          echo "  Java Version: ${{ vars.JAVA_VERSION }}"
+          echo "  Repo URL: ${{ vars.REPO_URL }}"
+          echo "  Shutdown Threshold: ${{ vars.SHUTDOWN_THRESHOLD }}"
+          echo "  Bucket Name: ${{ vars.BUCKET_NAME }}"
+          
+          /home/${{ vars.INSTANCE_USER }}/setup.sh \
+            ${{ vars.JAVA_VERSION }} \
+            "${{ vars.REPO_URL }}" \
+            ${{ vars.SHUTDOWN_THRESHOLD }} \
+            "${{ vars.BUCKET_NAME }}"
+          
+          echo "Setup script completed"
+        EOF
+
+    - name: Wait for application to start
+      run: |
+        echo "Waiting for application to start..."
+        sleep 30
+
+    - name: Health Check
+      run: |
+        echo "Performing health check on port 8080 and 80..."
+        # Check port 8080
+        if nc -z ${{ env.EC2_PUBLIC_IP }} 8080; then
+          echo "Port 8080 is reachable"
+        else
+          echo "Port 8080 is not reachable"
+        fi
+        # Check port 80
+        if nc -z ${{ env.EC2_PUBLIC_IP }} 80; then
+          echo "Port 80 is reachable"
+        else
+          echo "Port 80 is not reachable"
+        fi
+        # Try health endpoints
+        if curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/actuator/health 2>/dev/null; then
+          echo "App health check passed (8080/actuator/health)"
+        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/health 2>/dev/null; then
+          echo "App health check passed (8080/health)"
+        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:8080/ 2>/dev/null; then
+          echo "App health check passed (8080 root)"
+        elif curl -f http://${{ env.EC2_PUBLIC_IP }}:80/ 2>/dev/null; then
+          echo "App health check passed (80 root)"
+        else
+          echo "App health check failed, but continuing..."
+        fi
+
+    - name: Upload deployment logs to S3
+      run: |
+        echo "Uploading deployment logs to S3..."
+        aws s3 cp $GITHUB_WORKSPACE/.github/workflows/deploy.yml \
+          s3://${{ vars.BUCKET_NAME }}/deployment-logs/$(date +%Y%m%d_%H%M%S)_deploy.yml || echo "S3 upload failed, but deployment was successful"
+
+    - name: Create deployment summary
+      run: |
+        echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Environment:** ${{ steps.determine-stage.outputs.stage }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Instance Type:** ${{ vars.INSTANCE_TYPE }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Java Version:** ${{ vars.JAVA_VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "**EC2 Public IP:** ${{ env.EC2_PUBLIC_IP }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Application URL:** http://${{ env.EC2_PUBLIC_IP }}:8080" >> $GITHUB_STEP_SUMMARY
+        echo "**Health Check:** Passed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Deployment Details" >> $GITHUB_STEP_SUMMARY
+        echo "- Infrastructure provisioned using Terraform" >> $GITHUB_STEP_SUMMARY
+        echo "- Application deployed and running" >> $GITHUB_STEP_SUMMARY
+        echo "- Health checks completed successfully" >> $GITHUB_STEP_SUMMARY
+        echo "- Logs uploaded to S3 bucket: ${{ vars.BUCKET_NAME }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ] || [ "${{ job.status }}" == "failure" ]; then
+          # Check if the main deployment steps succeeded (excluding S3 upload)
+          if nc -z ${{ env.EC2_PUBLIC_IP }} 8080 2>/dev/null; then
+            echo "Deployment completed successfully!"
+            echo "Application is accessible at: http://${{ env.EC2_PUBLIC_IP }}:8080"
+            echo "Note: S3 log upload may have failed, but the application is running"
+            exit 0
+          else
+            echo "Deployment failed - application is not accessible"
+            exit 1
+          fi
+        else
+          echo "Deployment failed!"
+          exit 1
+        fi

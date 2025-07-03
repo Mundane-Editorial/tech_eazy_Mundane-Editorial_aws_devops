@@ -1,0 +1,39 @@
+{
+  "environment": "development",
+  "debug": true,
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "username": "dev_user",
+    "password": "dev_password",
+    "name": "dev_db"
+  },
+  "logging": {
+    "level": "DEBUG",
+    "file": "/app/logs/app.log",
+    "s3_bucket": "dev-config-bucket",
+    "s3_path": "logs/dev/"
+  },
+  "feature_flags": {
+    "new_ui": false,
+    "beta_feature": true,
+    "experimental_mode": true
+  },
+  "api": {
+    "base_url": "https://dev-api.example.com",
+    "timeout": 30000,
+    "retry_attempts": 3
+  },
+  "security": {
+    "cors_enabled": true,
+    "allowed_origins": ["http://localhost:3000", "https://dev.example.com"]
+  },
+  "monitoring": {
+    "health_check_interval": 30,
+    "metrics_enabled": true
+  }
+} 

@@ -19,8 +19,10 @@ resource "aws_instance" "Java-Application" {
 
   provisioner "remote-exec" {
     inline = [
+      "sudo apt update -y",
+      "sudo apt install -y unzip git curl",
       "chmod +x /home/${var.instance_user}/setup.sh",
-      "/home/${var.instance_user}/setup.sh ${var.java_version} ${var.repo_url} ${var.shutdown_threshold} ${aws_s3_bucket.artifact_bucket.bucket}"
+      "/home/${var.instance_user}/setup.sh ${var.java_version} ${var.repo_url} ${var.shutdown_threshold} ${aws_s3_bucket.artifact_bucket.bucket} ${var.stage}"
     ]
 
     connection {
@@ -32,7 +34,9 @@ resource "aws_instance" "Java-Application" {
   }
 
   tags = {
-    Name = "Java-Application"
+    Name  = "Java-Application"
+    Stage = var.stage
   }
 }
 
+//test

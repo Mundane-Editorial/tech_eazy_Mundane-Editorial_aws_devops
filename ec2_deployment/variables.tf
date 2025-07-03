@@ -59,3 +59,18 @@ variable "bucket_name" {
   }
 }
 
+variable "stage" {
+  description = "Deployment stage (dev, qa, prod)"
+  type        = string
+}
+
+variable "git_token" {
+  description = "GitHub token for private repo access (set from Git_Token secret in GitHub Actions)"
+  type        = string
+  default     = ""
+}
+
+variable "alert_email" {
+  description = "Email address for SNS alerts"
+  type        = string
+}
