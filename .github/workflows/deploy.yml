@@ -87,6 +87,7 @@ jobs:
         shutdown_threshold = ${{ vars.SHUTDOWN_THRESHOLD }}
         repo_url = "${{ vars.REPO_URL }}"
         bucket_name = "${{ vars.BUCKET_NAME }}"
+        alert_email = "${{ vars.ALERT_EMAIL }}"
         EOF
 
     - name: Terraform Init
