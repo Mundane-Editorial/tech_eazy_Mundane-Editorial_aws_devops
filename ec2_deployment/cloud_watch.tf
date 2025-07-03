@@ -16,7 +16,7 @@ resource "aws_sns_topic_subscription" "email" {
 resource "aws_cloudwatch_log_metric_filter" "error_filter" {
   name           = "error-metric-filter"
   log_group_name = aws_cloudwatch_log_group.app_logs.name
-  pattern        = "ERROR || Exception"
+  pattern        = "ERROR Exception"
   metric_transformation {
     name      = "ErrorCount"
     namespace = "App"
@@ -56,6 +56,6 @@ resource "aws_iam_policy" "cw_agent_policy" {
 }
 
 resource "aws_iam_role_policy_attachment" "cw_agent_policy_attachment" {
-  role       = aws_iam_instance_profile.Java-Application-Profile.name
+  role       = aws_iam_role.uploadonly_s3_role.name
   policy_arn = aws_iam_policy.cw_agent_policy.arn
 } 
